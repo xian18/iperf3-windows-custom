@@ -1,0 +1,57 @@
+name: compile-iperf3-windows
+run-name: Compile ${{ github.event.inputs.iperf3-repo }} - ${{ github.event.inputs.iperf3-revision }}
+on: 
+  workflow_dispatch:
+    inputs:
+      iperf3-repo:
+        description: 'iperf3 repository on github'
+        required: true
+      iperf3-revision:
+        description: 'iperf3 revision'
+        required: true
+jobs:
+  build-iperf3-windows:
+    runs-on: windows-latest
+    env:
+      IPERF_REPO: ${{ github.event.inputs.iperf3-repo }}
+      IPERF_REVISION: ${{ github.event.inputs.iperf3-revision }}
+    steps:
+      - run: git config --global core.autocrlf input
+      - name: Checkout current repository
+        uses: actions/checkout@v5
+      - name: Checkout iperf3 repository
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.event.inputs.iperf3-repo }}
+          ref: ${{ github.event.inputs.iperf3-revision }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: iperf3
+
+      - name: Install cygwin
+        uses: cygwin/cygwin-install-action@master
+        with:
+          packages: gcc-core gcc-g++ make autoconf automake libtool pkg-config
+      - name: Compile iperf3
+        run: bash ./build.sh
+
+      - name: Archive For Release
+        uses: thedoctor0/zip-release@master
+        with:
+          filename: 'iperf3.zip'
+          directory: 'iperf3/output/bin'
+      - name: release
+        uses: softprops/action-gh-release@v2
+        with:
+          body: "Automated build of iperf3-windows from repo: ${{ github.event.inputs.iperf3-repo }} at revision: ${{ github.event.inputs.iperf3-revision }}"
+          tag_name: ${{ env.RELEASE_TAG }}
+          token: "${{ secrets.GITHUB_TOKEN }}"
+          prerelease: true
+          name: "Auto build of iperf3-windows: ${{ github.event.inputs.iperf3-repo }} - ${{ github.event.inputs.iperf3-revision }}"
+          files: |
+            iperf3/output/bin/iperf3.zip
+
+      - name: Upload iperf3 binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: iperf3-windows-binary
+          path: iperf3/output/bin/iperf3.zip
